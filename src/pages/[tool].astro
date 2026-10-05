@@ -1,0 +1,15 @@
+---
+import Layout from '../components/Layout.astro';
+import ImageTool from '../components/ImageTool.astro';
+import ToolSidebar from '../components/ToolSidebar.astro';
+import Icon from '../components/Icon.astro';
+import { tools } from '../lib/tools';
+export function getStaticPaths() { return tools.map(tool => ({ params: { tool: tool.slug }, props: { tool } })); }
+const { tool } = Astro.props;
+---
+<Layout title={`${tool.title} Gratis`} description={tool.description}>
+  <div class="breadcrumb"><a href="/">Beranda</a><Icon name="chevron" size={12}/><span>{tool.short}</span></div>
+  <section class="tool-intro"><h1>{tool.title}</h1><p>{tool.description}</p></section>
+  <div class="workspace"><ImageTool tool={tool}/><ToolSidebar current={tool.slug}/></div>
+  <section class="tool-content"><div><h2>Cara pakai</h2><ol class="instruction-list"><li>Pilih {tool.accept === 'image/png' ? 'gambar PNG' : tool.accept === 'image/jpeg' ? 'foto JPG' : 'foto JPG, PNG, atau WebP'} dari perangkat Anda.</li><li>{tool.kind === 'compress' ? tool.target ? `Gunakan target ${tool.target} KB, lalu tekan Kompres foto.` : 'Pilih kualitas atau target ukuran, lalu tekan Kompres foto.' : tool.kind === 'crop' ? 'Atur posisi dan zoom pada preview, lalu simpan potongan foto.' : tool.format === 'image/jpeg' ? 'Pilih warna latar jika gambar transparan, lalu konversi ke JPG.' : 'Periksa preview, lalu konversi ke PNG.'}</li><li>Periksa hasil dan tekan Download foto untuk menyimpannya.</li></ol><p class="content-note">Foto asli tetap utuh. Hasil disimpan sebagai file baru di perangkat Anda.</p></div><div class="faq"><h2>Pertanyaan umum</h2>{tool.faqs.map(([q, a]) => <details><summary>{q}<span>+</span></summary><p>{a}</p></details>)}<details><summary>Apakah foto saya dikirim ke server?<span>+</span></summary><p>Tidak. Foto diproses di browser Anda. BeresFile tidak menyimpan foto atau riwayat file Anda.</p></details></div></section>
+</Layout>

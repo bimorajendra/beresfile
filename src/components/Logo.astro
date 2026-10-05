@@ -1,0 +1,10 @@
+---
+import { getImage } from 'astro:assets';
+import source from '../assets/beresfile-logo.png';
+interface Props { small?: boolean; }
+const { small = false } = Astro.props;
+const logo = await getImage({ src: source, width: 520, format: 'webp', quality: 90 });
+---
+<svg class:list={['brand-logo', { small }]} viewBox="185 150 1835 410" width={small ? 132 : 172} height={small ? 30 : 39} role="img" aria-label="BeresFile">
+  <image href={logo.src} width={source.width} height={source.height} />
+</svg>

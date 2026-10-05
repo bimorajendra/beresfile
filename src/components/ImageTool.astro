@@ -1,0 +1,33 @@
+---
+import type { Tool } from '../lib/tools';
+import Icon from './Icon.astro';
+import FileDrop from './FileDrop.astro';
+interface Props { tool: Tool; home?: boolean; }
+const { tool, home = false } = Astro.props;
+const compressor = tool.kind === 'compress';
+---
+<section class="tool-panel" data-image-tool data-config={JSON.stringify(tool)} aria-labelledby="tool-heading">
+  <div class="panel-heading"><div class="panel-title"><Icon name={tool.icon} size={21}/><h2 id="tool-heading">{home ? 'Kompres foto' : tool.short}</h2></div><span class="local-label">Tanpa upload</span></div>
+  <div class="tool-body">
+    {compressor && <div class="target-control"><span class="field-label">Ukuran hasil</span><div class="segments" role="group" aria-label="Pilih ukuran hasil">
+      {[100, 200, 500, 0].map((target) => <button type="button" data-target={target} aria-pressed={(tool.target || 0) === target}>{target ? `${target} KB` : 'Atur kualitas'}</button>)}
+    </div><p class="setting-hint" data-target-hint>{tool.target ? `Hasil maksimal ${tool.target} KB. Kualitas disesuaikan otomatis.` : 'Pilih kualitas untuk menyeimbangkan detail dan ukuran foto.'}</p></div>}
+    {compressor && <div data-quality-wrap hidden={Boolean(tool.target)} class="quality-control"><label for="quality">Kualitas foto <output data-quality-value>80%</output></label><input id="quality" data-quality type="range" min="10" max="95" value="80"/><div class="range-labels"><span>File lebih kecil</span><span>Detail lebih tinggi</span></div></div>}
+    <div data-empty><FileDrop accept={tool.accept}/></div>
+    <div data-editor hidden>
+      <div class="selected-file"><span class="selected-icon"><Icon name="image" size={21}/></span><div><strong data-filename></strong><span data-fileinfo></span></div><button class="icon-button" data-reset type="button" aria-label="Hapus foto dan pilih ulang"><Icon name="close" size={18}/></button></div>
+      <div class:list={['preview-stage', { 'crop-stage': tool.kind === 'crop' }]}><img data-preview alt="Preview foto yang dipilih"/><canvas data-crop hidden={tool.kind !== 'crop'} aria-label="Preview potongan foto; gunakan pengatur posisi di bawah untuk mengubahnya"></canvas></div>
+      {tool.kind === 'crop' && <div class="crop-controls"><p class="setting-hint">Geser foto pada preview atau atur posisi di bawah.</p><label for="zoom">Zoom <output data-zoom-value>1×</output></label><input id="zoom" data-zoom type="range" min="1" max="3" value="1" step="0.01"/><div class="position-controls"><div><label for="position-x">Posisi horizontal</label><input id="position-x" data-x type="range" min="0" max="100" value="50"/></div><div><label for="position-y">Posisi vertikal</label><input id="position-y" data-y type="range" min="0" max="100" value="50"/></div></div><p class="setting-hint">Hasil: {tool.width} × {tool.height} piksel · JPG</p></div>}
+      {tool.kind === 'convert' && tool.format === 'image/jpeg' && <div class="background-control"><label for="background">Warna latar transparan</label><input type="color" id="background" data-background value="#ffffff"/><span>Putih secara default</span></div>}
+      <button type="button" class="button primary process-button" data-process><Icon name={tool.icon} size={18}/>{compressor ? 'Kompres foto' : tool.kind === 'crop' ? 'Simpan potongan foto' : `Konversi ke ${tool.format === 'image/png' ? 'PNG' : 'JPG'}`}</button>
+    </div>
+    <div data-processing hidden class="processing-state" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><h3>Memproses foto…</h3><p>Tunggu sebentar. Waktu proses bergantung pada ukuran foto.</p></div>
+    <div data-result hidden class="result-state"><div class="success-heading"><Icon name="check" size={20}/><h3>Foto siap disimpan</h3></div><div class="result-preview"><img data-result-preview alt="Preview hasil pemrosesan"/></div><div class="result-stats"><div><span>Sebelum</span><strong data-before></strong></div><Icon name="arrow" size={21}/><div><span>Sesudah</span><strong data-after></strong></div><span class="saving" data-saving></span></div><p data-result-detail class="setting-hint"></p><a class="button primary download-button" data-download><Icon name="download" size={19}/>Download foto</a><button class="button secondary" data-another type="button">Proses foto lain <Icon name="arrow" size={17}/></button></div>
+    <div class="error-message" role="alert" data-error hidden></div>
+    <div class="privacy-note"><Icon name="shield" size={17}/><span>Foto diproses di browser, tidak dikirim ke server. <a href="/privasi/">Tentang privasi</a></span></div>
+  </div>
+</section>
+<script>
+  import { initImageTools } from '../lib/tool-client';
+  initImageTools();
+</script>

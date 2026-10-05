@@ -1,0 +1,14 @@
+---
+import Icon from './Icon.astro';
+import { tools, featured } from '../lib/tools';
+interface Props { current?: string; }
+const { current } = Astro.props;
+const related = [...featured, 'jpg-to-png'].filter(s => s !== current).slice(0, 4).map(s => tools.find(t => t.slug === s)!);
+const kind = tools.find(t => t.slug === current)?.kind;
+const tip = kind === 'crop'
+  ? ['Sebelum digunakan', 'Cek ketentuan pas foto pada formulir Anda. Ukuran cetak dalam sentimeter perlu diatur lagi saat mencetak.']
+  : kind === 'convert'
+    ? ['Periksa hasilnya', 'Konversi format tidak menambah detail foto. Hasil PNG juga bisa lebih besar daripada JPG.']
+    : ['Sebelum dikirim', 'Cek batas ukuran file pada formulir Anda. Pastikan wajah atau tulisan masih terlihat jelas setelah dikompres.'];
+---
+<aside class="tool-sidebar"><h2>Alat foto lainnya</h2><div class="sidebar-tools">{related.map((tool) => <a href={`/${tool.slug}/`} class="sidebar-tool"><Icon name={tool.icon} size={21}/><span><strong>{tool.short}</strong><small>{tool.kind === 'crop' ? 'Potong foto untuk pendaftaran' : tool.kind === 'convert' ? 'Ubah format gambar' : 'Kecilkan sesuai batas formulir'}</small></span><Icon name="chevron" size={16}/></a>)}</div><a class="text-link" href="/#semua-tool">Lihat semua alat <Icon name="arrow" size={17}/></a><div class="sidebar-tip"><h3>{tip[0]}</h3><p>{tip[1]}</p></div></aside>

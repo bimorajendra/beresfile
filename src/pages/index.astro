@@ -1,0 +1,14 @@
+---
+import Layout from '../components/Layout.astro';
+import ImageTool from '../components/ImageTool.astro';
+import ToolSidebar from '../components/ToolSidebar.astro';
+import Icon from '../components/Icon.astro';
+import { tools } from '../lib/tools';
+const groups = [{ title: 'Kecilkan ukuran file', subtitle: 'Sesuaikan dengan batas ukuran formulir.', icon: 'compress', items: tools.filter(t => t.kind === 'compress') }, { title: 'Buat pas foto', subtitle: 'Potong foto ke rasio 3×4 atau 4×6.', icon: 'crop', items: tools.filter(t => t.kind === 'crop') }, { title: 'Ganti format gambar', subtitle: 'Ubah PNG ke JPG, atau sebaliknya.', icon: 'convert', items: tools.filter(t => t.kind === 'convert') }];
+---
+<Layout title="Urus file tanpa ribet" description="Kompres foto, resize pas foto 3×4 dan 4×6, serta konversi PNG dan JPG. Gratis, tanpa akun, dan seluruh proses langsung di browser.">
+  <section class="home-intro"><h1>Urus file tanpa ribet.</h1><p>Foto terlalu besar untuk formulir? Kecilkan di sini.<br class="desktop-break"/> Anda juga bisa menyiapkan pas foto dan mengubah format gambar.</p></section>
+  <div class="workspace"><ImageTool tool={tools[2]} home/><ToolSidebar/></div>
+  <section class="tool-directory" id="semua-tool"><div class="section-heading"><h2>Semua alat</h2><p>Pilih sesuai kebutuhan Anda.</p></div><div class="tool-groups">{groups.map(group => <div class="tool-group"><div class="group-heading"><Icon name={group.icon} size={21}/><h3>{group.title}</h3></div><p>{group.subtitle}</p><div class="directory-links">{group.items.map(tool => <a href={`/${tool.slug}/`}>{tool.short}<Icon name="arrow" size={17}/></a>)}</div></div>)}</div></section>
+  <section class="how-section" id="cara-kerja"><h2>Cara pakai</h2><ol class="steps"><li><span class="step-number">1</span><div><h3>Pilih foto</h3><p>Ambil dari galeri atau tarik file ke area di atas.</p></div></li><li><span class="step-number">2</span><div><h3>Atur, lalu proses</h3><p>Pilih ukuran atau format yang Anda butuhkan.</p></div></li><li><span class="step-number">3</span><div><h3>Simpan hasilnya</h3><p>Periksa foto, lalu tekan Download foto. Foto asli tetap ada.</p></div></li></ol></section>
+</Layout>
