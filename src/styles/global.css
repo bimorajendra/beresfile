@@ -55,12 +55,22 @@ p { color: var(--muted); }
 .local-label { color: var(--green-ink); font-size: 12px; white-space: nowrap; }
 .tool-body { padding: 22px 24px 18px; }
 .field-label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 9px; }
-.segments { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.segments { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .segments button { min-height: 44px; border: 0; border-radius: 4px; background: #f5f7fa; font-size: 13px; color: var(--muted); white-space: nowrap; padding: 9px; }
 .segments button:hover { background: var(--accent-soft); color: var(--accent); }
 .segments button[aria-pressed=true] { background: #e9faf5; color: #075344; font-weight: 700; }
 .setting-hint { font-size: 12px; line-height: 1.6; margin-top: 9px; }
 .target-control { margin-bottom: 20px; }
+.target-modes { display: flex; gap: 10px; margin-top: 8px; }
+.target-modes button { min-height: 44px; border: 0; border-radius: 4px; padding: 9px 14px; background: transparent; color: var(--accent); font-size: 13px; }
+.target-modes button:hover { background: var(--accent-soft); }
+.target-modes button[aria-pressed=true] { background: #e9faf5; color: #075344; font-weight: 700; }
+.custom-target { margin-top: 12px; }
+.custom-target label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+.custom-target > div { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.custom-target input { min-height: 44px; width: 160px; max-width: 100%; padding: 9px 12px; border: 0; border-radius: 4px; background: #f5f7fa; color: var(--foreground); }
+.custom-target input[aria-invalid=true] { outline: 2px solid var(--danger); }
+.field-error { margin-top: 8px; color: var(--danger); font-size: 12px; }
 .dropzone { border: 1px dashed #aab9ce; background: #f8faff; border-radius: 5px; display: flex; align-items: center; flex-direction: column; padding: 28px 16px 24px; transition: border-color .15s, background .15s; text-align: center; }
 .dropzone.drag-over { background: #e9faf5; border-color: var(--green-ink); }
 .dropzone > svg { color: #526d9f; margin-bottom: 17px; }
@@ -120,6 +130,15 @@ p { color: var(--muted); }
 .tool-intro h1 { font-size: 34px; letter-spacing: -.9px; margin-bottom: 9px; }
 .tool-intro p { max-width: 690px; font-size: 14px; }
 .tool-content { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; padding: 33px 0 45px; margin-top: 37px; border-top: 1px solid var(--border); }
+.task-guide { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 48px; margin-top: 36px; }
+.task-guide h2 { font-size: 23px; margin-bottom: 14px; }
+.task-guide p { font-size: 14px; line-height: 1.85; }
+.task-guide p + p { margin-top: 12px; }
+.task-guide aside { padding-top: 4px; }
+.task-guide aside h3 { font-size: 15px; margin-bottom: 12px; }
+.task-guide ul { margin: 0; padding-left: 19px; color: var(--muted); font-size: 13px; }
+.task-guide li { padding-left: 3px; margin-bottom: 10px; }
+.task-guide li::marker { color: var(--green-ink); }
 .tool-content h2 { font-size: 22px; margin-bottom: 18px; }
 .instruction-list { padding-left: 20px; color: var(--muted); font-size: 14px; }
 .instruction-list li { padding-left: 6px; margin: 12px 0; }
@@ -197,7 +216,9 @@ input[type=color] { width: 44px; height: 44px; border: 1px solid var(--border); 
   .directory-links a { font-size: 13px; }
   .steps { gap: 25px; }
   .tool-content { gap: 36px; }
+  .task-guide { grid-template-columns: minmax(0, 1fr) 240px; gap: 30px; }
 }
+@media (min-width: 1001px) { .segments { grid-template-columns: repeat(6, 1fr); } }
 @media (max-width: 767px) {
   .container { width: calc(100% - 36px); }
   .site-header { height: 74px; }
@@ -228,6 +249,7 @@ input[type=color] { width: 44px; height: 44px; border: 1px solid var(--border); 
   .footer-inner > div { width: 100%; margin-left: 0; justify-content: space-between; gap: 12px; }
   .tool-intro h1 { font-size: 29px; letter-spacing: -.7px; }
   .tool-content { grid-template-columns: 1fr; gap: 30px; margin-top: 28px; padding-top: 28px; }
+  .task-guide { grid-template-columns: 1fr; gap: 22px; margin-top: 28px; }
   .prose h1 { font-size: 32px; }
   .not-found h1 { font-size: 30px; }
 }
@@ -241,7 +263,7 @@ input[type=color] { width: 44px; height: 44px; border: 1px solid var(--border); 
   .panel-title h2 { font-size: 17px; }
   .local-label { font-size: 11px; }
   .tool-body { padding: 18px 16px; }
-  .segments { gap: 7px; grid-template-columns: 1fr 1fr; }
+  .segments { gap: 7px; grid-template-columns: repeat(3, 1fr); }
   .segments button { font-size: 13px; }
   .dropzone { padding: 25px 10px 23px; }
   .dropzone h3 { font-size: 16px; }

@@ -146,3 +146,92 @@ test('All pages have metadata, local tool links, and no overflow at required wid
   const sitemap = await page.request.get('/sitemap.xml'); expect((await sitemap.text()).match(/<loc>/g)?.length).toBe(10);
   const robots = await page.request.get('/robots.txt'); expect(await robots.text()).toContain('https://beresfile.id/sitemap.xml');
 });
+
+for (const kb of [50, 300, 1024, 175, 1]) test(`Additional preset or custom ${kb} KB exports within the requested byte limit`, async ({ page }, info) => {
+  await page.goto('/compress-image/');
+  if ([50, 300, 1024].includes(kb)) await page.locator(`[data-target="${kb}"]`).click();
+  else { await page.locator('[data-target="-1"]').click(); await page.locator('[data-custom-target]').fill(String(kb)); }
+  await page.locator('[data-file]').setInputFiles(await fixture(page, 'image/png', true));
+  await page.locator('[data-process]').click();
+  await expect(page.locator('[data-result]')).toBeVisible();
+  const output = await downloadResult(page, info.outputPath(`target-${kb}.jpg`));
+  expect(output.bytes.length).toBeLessThanOrEqual(kb * 1024);
+  expect(output.bytes.length).toBeGreaterThan(0);
+  await expect(page.locator('[data-result-detail]')).toContainText(kb === 1024 ? 'Maks. 1 MB terpenuhi' : `Maks. ${kb} KB terpenuhi`);
+});
+
+test('Invalid custom targets are rejected and changing the target invalidates the old result', async ({ page }, info) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/compress-image-200kb/');
+  await page.locator('[data-file]').setInputFiles(await fixture(page));
+  await page.locator('[data-process]').click();
+  await expect(page.locator('[data-result]')).toBeVisible();
+  await page.locator('[data-target="-1"]').click();
+  await expect(page.locator('[data-editor]')).toBeVisible();
+  await expect(page.locator('[data-download]')).not.toHaveAttribute('href');
+  for (const value of ['', '0', '-4', '1.5', '25601']) {
+    await page.locator('[data-custom-target]').fill(value);
+    await page.locator('[data-process]').click();
+    await expect(page.locator('[data-target-error]')).toBeVisible();
+    await expect(page.locator('[data-custom-target]')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('[data-custom-target]')).toBeFocused();
+    await expect(page.locator('[data-result]')).toBeHidden();
+  }
+  await page.locator('[data-custom-target]').fill('25600');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('custom-target-mobile.png'), fullPage: true });
+  await page.locator('[data-process]').click();
+  await expect(page.locator('[data-result]')).toBeVisible();
+  await page.locator('[data-target="0"]').click();
+  await expect(page.locator('[data-editor]')).toBeVisible();
+  await expect(page.locator('[data-quality-wrap]')).toBeVisible();
+  await expect(page.locator('[data-custom-wrap]')).toBeHidden();
+});
+
+async function enabledAnalyticsPage(page: Page) {
+  // Exercise the enabled build setting without sending events to a live service.
+  await page.route(url => url.pathname === '/compress-image-200kb/', async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, body: (await response.text()).replace('data-analytics="off"', 'data-analytics="cloudflare"') });
+  });
+}
+
+test('Enabled analytics sends the four funnel events without file data, cookies, or referrer', async ({ page, context }, info) => {
+  const sent: { payload: Record<string, unknown>; headers: Record<string, string> }[] = [];
+  await context.addCookies([{ name: 'private-session', value: 'secret-value', url: 'http://localhost:48321' }]);
+  await page.route('**/api/events', async route => { sent.push({ payload: route.request().postDataJSON(), headers: await route.request().allHeaders() }); await route.fulfill({ status: 204 }); });
+  await enabledAnalyticsPage(page);
+  await page.goto('/compress-image-200kb/?private-query=secret');
+  await page.locator('[data-target="-1"]').click();
+  await page.locator('[data-custom-target]').fill('175');
+  const photo = await fixture(page);
+  await page.locator('[data-file]').setInputFiles({ ...photo, name: 'private-passport.png' });
+  await page.locator('[data-process]').click();
+  await expect(page.locator('[data-result]')).toBeVisible();
+  await downloadResult(page, info.outputPath('private-output.jpg'));
+  await expect.poll(() => sent.length).toBe(4);
+  expect(sent.map(item => item.payload.event)).toEqual(['tool_opened', 'file_selected', 'processing_success', 'download_clicked']);
+  for (const item of sent) {
+    expect(Object.keys(item.payload).sort()).toEqual(['entry', 'event', 'mode', 'source', 'target', 'tool']);
+    expect(item.payload.tool).toBe('compress-image-200kb');
+    expect(item.headers.origin).toBe('http://localhost:48321');
+    expect(item.headers.cookie).toBeUndefined(); expect(item.headers.referer).toBeUndefined();
+    expect(JSON.stringify(item.payload)).not.toContain('private'); expect(JSON.stringify(item.payload)).not.toContain('secret');
+  }
+  expect(sent[3].payload.mode).toBe('custom'); expect(sent[3].payload.target).toBe(175);
+});
+
+for (const privacy of ['dnt', 'gpc', 'failure']) test(`Analytics ${privacy} does not block processing or download`, async ({ page }, info) => {
+  const sent: unknown[] = [];
+  await enabledAnalyticsPage(page);
+  await page.route('**/api/events', async route => { sent.push(route.request().postDataJSON()); await route.fulfill({ status: 503 }); });
+  if (privacy !== 'failure') await page.addInitScript(flag => { Object.defineProperty(navigator, flag === 'dnt' ? 'doNotTrack' : 'globalPrivacyControl', { get: () => flag === 'dnt' ? '1' : true }); }, privacy);
+  await page.goto('/compress-image-200kb/');
+  await page.locator('[data-file]').setInputFiles(await fixture(page));
+  await page.locator('[data-process]').click();
+  await expect(page.locator('[data-result]')).toBeVisible();
+  const output = await downloadResult(page, info.outputPath('privacy.jpg'));
+  expect(output.bytes.length).toBeGreaterThan(0);
+  if (privacy !== 'failure') expect(sent).toEqual([]);
+  else await expect.poll(() => sent.length).toBe(4);
+});

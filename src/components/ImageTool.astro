@@ -2,16 +2,17 @@
 import type { Tool } from '../lib/tools';
 import Icon from './Icon.astro';
 import FileDrop from './FileDrop.astro';
+import { COMPRESSION_PRESETS, MAX_TARGET_KB, targetLabel } from '../lib/compression-options';
 interface Props { tool: Tool; home?: boolean; }
 const { tool, home = false } = Astro.props;
 const compressor = tool.kind === 'compress';
 ---
-<section class="tool-panel" data-image-tool data-config={JSON.stringify(tool)} aria-labelledby="tool-heading">
+<section class="tool-panel" data-image-tool data-config={JSON.stringify(tool)} data-analytics={import.meta.env.PUBLIC_ANALYTICS_PROVIDER === 'cloudflare' ? 'cloudflare' : 'off'} aria-labelledby="tool-heading">
   <div class="panel-heading"><div class="panel-title"><Icon name={tool.icon} size={21}/><h2 id="tool-heading">{home ? 'Kompres foto' : tool.short}</h2></div><span class="local-label">Tanpa upload</span></div>
   <div class="tool-body">
     {compressor && <div class="target-control"><span class="field-label">Ukuran hasil</span><div class="segments" role="group" aria-label="Pilih ukuran hasil">
-      {[100, 200, 500, 0].map((target) => <button type="button" data-target={target} aria-pressed={(tool.target || 0) === target}>{target ? `${target} KB` : 'Atur kualitas'}</button>)}
-    </div><p class="setting-hint" data-target-hint>{tool.target ? `Hasil maksimal ${tool.target} KB. Kualitas disesuaikan otomatis.` : 'Pilih kualitas untuk menyeimbangkan detail dan ukuran foto.'}</p></div>}
+      {COMPRESSION_PRESETS.map((target) => <button type="button" data-target={target} aria-pressed={(tool.target || 0) === target}>{targetLabel(target)}</button>)}
+    </div><div class="target-modes" role="group" aria-label="Pengaturan ukuran lainnya"><button type="button" data-target="-1" aria-pressed="false">Ukuran lain</button><button type="button" data-target="0" aria-pressed={!tool.target}>Atur kualitas</button></div><div class="custom-target" data-custom-wrap hidden><label for="custom-target">Target ukuran</label><div><input id="custom-target" data-custom-target type="number" inputmode="numeric" min="1" max={MAX_TARGET_KB} step="1" value={tool.target || 200} aria-describedby="custom-target-help"/><span>KB</span></div><p id="custom-target-help" class="setting-hint">Masukkan 1–25.600 KB. Hasil tidak akan melebihi target.</p><p data-target-error hidden class="field-error" role="alert"></p></div><p class="setting-hint" data-target-hint>{tool.target ? `Hasil maksimal ${targetLabel(tool.target)}. Kualitas disesuaikan otomatis.` : 'Pilih kualitas untuk menyeimbangkan detail dan ukuran foto.'}</p></div>}
     {compressor && <div data-quality-wrap hidden={Boolean(tool.target)} class="quality-control"><label for="quality">Kualitas foto <output data-quality-value>80%</output></label><input id="quality" data-quality type="range" min="10" max="95" value="80"/><div class="range-labels"><span>File lebih kecil</span><span>Detail lebih tinggi</span></div></div>}
     <div data-empty><FileDrop accept={tool.accept}/></div>
     <div data-editor hidden>

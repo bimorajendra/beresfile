@@ -1,6 +1,8 @@
 import { imageType, decodeImage, compressImage, convertImage, cropImage, cropRect, MAX_FILE_BYTES } from './image';
 import type { ImageResult } from './image';
 import type { Tool } from './tools';
+import { parseTargetKB, targetLabel } from './compression-options';
+import { trackEvent, type AnalyticsEvent } from './analytics';
 
 export function initImageTools() {
   document.querySelectorAll<HTMLElement>('[data-image-tool]').forEach(root => {
@@ -17,7 +19,10 @@ export function initImageTools() {
     const range = (name: string) => get<HTMLInputElement>(`[data-${name}]`);
     let selected: File | undefined, image: HTMLImageElement | undefined;
     let sourceUrl = '', resultUrl = '', target = config.target || 0, busy = false, selectionId = 0;
-    const emit = (event: string) => window.dispatchEvent(new CustomEvent('beresfile:analytics', { detail: { event, tool: config.slug } }));
+    let targetMode: 'preset' | 'custom' | 'quality' = config.target ? 'preset' : 'quality';
+    let processedMode: 'preset' | 'custom' | 'quality' = targetMode;
+    let processedTarget = target;
+    const emit = (event: AnalyticsEvent) => trackEvent({ event, tool: config.slug, mode: config.kind === 'compress' ? (event === 'download_clicked' ? processedMode : targetMode) : config.kind, target: config.kind === 'compress' ? (event === 'download_clicked' ? processedTarget : target) : 0 }, root.dataset.analytics === 'cloudflare');
     const size = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toLocaleString('id-ID', { maximumFractionDigits: 2 })} MB` : `${(bytes / 1024).toLocaleString('id-ID', { maximumFractionDigits: 1 })} KB`;
     function state(next: string) {
       empty.hidden = next !== 'empty'; editor.hidden = next !== 'editor'; processing.hidden = next !== 'processing'; result.hidden = next !== 'result';
@@ -26,6 +31,26 @@ export function initImageTools() {
     function announce(message: string) {
       error.textContent = message; error.hidden = false; error.tabIndex = -1; error.focus();
       emit('processing_error');
+    }
+    function invalidateResult() {
+      if (selected && !result.hidden) {
+        if (resultUrl) URL.revokeObjectURL(resultUrl);
+        resultUrl = ''; download.removeAttribute('href');
+        get<HTMLImageElement>('[data-result-preview]').removeAttribute('src');
+        state('editor');
+      }
+    }
+    function validateTarget(): boolean {
+      if (targetMode !== 'custom') return true;
+      const field = range('custom-target');
+      const parsed = parseTargetKB(field.value);
+      const message = get('[data-target-error]');
+      field.setAttribute('aria-invalid', String(parsed === undefined));
+      message.hidden = parsed !== undefined;
+      message.textContent = parsed === undefined ? 'Masukkan angka bulat antara 1 dan 25.600 KB.' : '';
+      if (parsed === undefined) return false;
+      target = parsed;
+      return true;
     }
     function clear() {
       ++selectionId;
@@ -79,13 +104,24 @@ export function initImageTools() {
     window.addEventListener('drop', event => { if (event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
     root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(button => button.addEventListener('click', () => {
       if (busy) return;
-      target = Number(button.dataset.target);
+      const chosen = Number(button.dataset.target);
+      targetMode = chosen < 0 ? 'custom' : chosen === 0 ? 'quality' : 'preset';
+      target = chosen < 0 ? parseTargetKB(range('custom-target').value) || 0 : chosen;
       root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
-      get('[data-quality-wrap]').hidden = target !== 0;
-      get('[data-target-hint]').textContent = target ? `Hasil maksimal ${target} KB. Kualitas disesuaikan otomatis.` : 'Pilih kualitas untuk menyeimbangkan detail dan ukuran foto.';
-      if (selected && !result.hidden) { state('editor'); processButton.focus({ preventScroll: true }); }
+      get('[data-quality-wrap]').hidden = targetMode !== 'quality';
+      get('[data-custom-wrap]').hidden = targetMode !== 'custom';
+      get('[data-target-hint]').textContent = targetMode === 'quality' ? 'Pilih kualitas untuk menyeimbangkan detail dan ukuran foto.' : target ? `Hasil maksimal ${targetLabel(target)}. Kualitas disesuaikan otomatis.` : 'Isi target ukuran sebelum memproses foto.';
+      invalidateResult();
+      if (targetMode === 'custom') { validateTarget(); range('custom-target').focus({ preventScroll: true }); }
     }));
-    if (config.kind === 'compress') range('quality').addEventListener('input', () => { get('[data-quality-value]').textContent = `${range('quality').value}%`; });
+    if (config.kind === 'compress') {
+      range('quality').addEventListener('input', () => { get('[data-quality-value]').textContent = `${range('quality').value}%`; invalidateResult(); });
+      range('custom-target').addEventListener('input', () => {
+        invalidateResult();
+        const valid = validateTarget();
+        get('[data-target-hint]').textContent = valid ? `Hasil maksimal ${targetLabel(target)}. Kualitas disesuaikan otomatis.` : 'Isi target ukuran sebelum memproses foto.';
+      });
+    }
     if (config.kind === 'crop') {
       ['zoom', 'x', 'y'].forEach(name => range(name).addEventListener('input', paintCrop));
       let pointer: { id: number; x: number; y: number } | undefined;
@@ -105,8 +141,10 @@ export function initImageTools() {
     }
     processButton.addEventListener('click', async () => {
       if (!selected || !image || busy) return;
+      if (!validateTarget()) { range('custom-target').focus(); return; }
       busy = true; error.hidden = true; state('processing');
       root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(b => b.disabled = true);
+      if (config.kind === 'compress') { range('custom-target').disabled = true; range('quality').disabled = true; }
       try {
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
         let output: ImageResult;
@@ -122,11 +160,12 @@ export function initImageTools() {
         get('[data-before]').textContent = size(selected.size); get('[data-after]').textContent = size(output.blob.size);
         const difference = Math.round((1 - output.blob.size / selected.size) * 100);
         get('[data-saving]').textContent = difference > 0 ? `${difference}% lebih kecil` : difference < 0 ? `${Math.abs(difference)}% lebih besar` : 'Ukuran setara';
-        get('[data-result-detail]').textContent = `${output.width} × ${output.height} piksel · ${extension.toUpperCase()}${target && config.kind === 'compress' ? ` · Maks. ${target} KB terpenuhi` : ''}`;
+        get('[data-result-detail]').textContent = `${output.width} × ${output.height} piksel · ${extension.toUpperCase()}${target && config.kind === 'compress' ? ` · Maks. ${targetLabel(target)} terpenuhi` : ''}`;
+        processedMode = targetMode; processedTarget = target;
         state('result'); emit('processing_success'); download.focus({ preventScroll: true });
       } catch (failure) {
         state('editor'); announce(failure instanceof Error ? failure.message : 'Foto gagal diproses. Coba gunakan foto yang lebih kecil.');
-      } finally { busy = false; root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(b => b.disabled = false); }
+      } finally { busy = false; root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(b => b.disabled = false); if (config.kind === 'compress') { range('custom-target').disabled = false; range('quality').disabled = false; } }
     });
     get('[data-reset]').addEventListener('click', () => { if (!busy) { clear(); pickButton.focus(); } });
     get('[data-another]').addEventListener('click', () => { clear(); pickButton.focus(); });
