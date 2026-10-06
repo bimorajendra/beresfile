@@ -1,14 +1,15 @@
 ---
 import Icon from './Icon.astro';
-interface Props { accept: string; }
-const { accept } = Astro.props;
-const formats = accept === 'image/png' ? 'PNG' : accept === 'image/jpeg' ? 'JPG' : 'JPG, PNG, atau WebP';
+interface Props { accept: string; multiple?: boolean; }
+const { accept, multiple = false } = Astro.props;
+const formats = accept === 'image/png' ? 'PNG' : accept === 'image/jpeg' ? 'JPG' : accept === 'image/webp' ? 'WebP' : 'JPG, PNG, atau WebP';
 ---
 <div class="dropzone" data-dropzone>
   <Icon name="image" size={38}/>
   <h3>Pilih foto dari perangkat</h3>
   <p>atau tarik file ke area ini</p>
   <button class="button primary" type="button" data-pick><Icon name="upload" size={18}/> Pilih foto</button>
-  <input class="visually-hidden" type="file" accept={accept} data-file tabindex="-1" aria-label="Pilih foto dari perangkat" />
-  <span class="file-support">{formats} <span>·</span> Maks. 25 MB</span>
+  <input class="visually-hidden" type="file" accept={accept} multiple={multiple} data-file tabindex="-1" aria-label="Pilih foto dari perangkat" />
+  <span class="file-support">{formats} <span>·</span> Maks. 25 MB per foto</span>
+  {multiple && <span class="file-support">Bisa pilih sampai 20 foto · total maks. 128 MB</span>}
 </div>
