@@ -1,5 +1,7 @@
-import { imageType, decodeImage, compressImage, convertImage, cropImage, cropRect, MAX_FILE_BYTES } from './image';
-import type { ImageResult } from './image';
+import { imageType, decodeImage, cropRect, MAX_FILE_BYTES, validateDimensions } from './image';
+import type { ImageJob, ImageFormat } from './image';
+import { ImageProcessor } from './image-processor';
+import type { ZipEntry } from './zip';
 import type { Tool } from './tools';
 import { parseTargetKB, targetLabel } from './compression-options';
 import { trackEvent, type AnalyticsEvent } from './analytics';
@@ -18,6 +20,20 @@ export function initImageTools() {
     const download = get<HTMLAnchorElement>('[data-download]');
     const range = (name: string) => get<HTMLInputElement>(`[data-${name}]`);
     let selected: File | undefined, image: HTMLImageElement | undefined;
+    const processor = new ImageProcessor();
+    const batch = root.querySelector<HTMLElement>('[data-batch]');
+    let batchFiles: File[] = [], batchEntries: ZipEntry[] = [], zipUrl = '';
+    const extensionFor = (type: string) => type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+    const outputName = (file: File, type: string) => `${file.name.replace(/\.[^.]+$/, '') || 'foto'}-beresfile.${extensionFor(type)}`;
+    function clearBatchResult() {
+      batchEntries = [];
+      if (zipUrl) URL.revokeObjectURL(zipUrl);
+      zipUrl = '';
+      if (batch) get('[data-batch-zip]').hidden = true;
+    }
+    function lockSettings(locked: boolean) {
+      root.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('input, select, button').forEach(control => control.disabled = locked);
+    }
     let sourceUrl = '', resultUrl = '', target = config.target || 0, busy = false, selectionId = 0;
     let targetMode: 'preset' | 'custom' | 'quality' = config.target ? 'preset' : 'quality';
     let processedMode: 'preset' | 'custom' | 'quality' = targetMode;
@@ -33,6 +49,11 @@ export function initImageTools() {
       emit('processing_error');
     }
     function invalidateResult() {
+      clearBatchResult();
+      if (batchFiles.length) {
+        get('[data-batch-status]').textContent = 'Pengaturan berubah. Proses ulang semua foto.';
+        get<HTMLProgressElement>('[data-batch-progress]').hidden = true;
+      }
       if (selected && !result.hidden) {
         if (resultUrl) URL.revokeObjectURL(resultUrl);
         resultUrl = ''; download.removeAttribute('href');
@@ -54,6 +75,8 @@ export function initImageTools() {
     }
     function clear() {
       ++selectionId;
+      clearBatchResult(); batchFiles = [];
+      if (batch) { batch.hidden = true; get('[data-batch-list]').replaceChildren(); }
       if (sourceUrl) URL.revokeObjectURL(sourceUrl);
       if (resultUrl) URL.revokeObjectURL(resultUrl);
       sourceUrl = ''; resultUrl = ''; selected = undefined; image = undefined;
@@ -75,6 +98,7 @@ export function initImageTools() {
       if (busy) return;
       clear();
       const id = selectionId;
+      busy = true; pickButton.disabled = true;
       try {
         if (file.size > MAX_FILE_BYTES) throw new Error('File terlalu besar untuk diproses di perangkat ini. Pilih foto dengan ukuran maksimal 25 MB.');
         const type = await imageType(file);
@@ -84,6 +108,11 @@ export function initImageTools() {
         image = await decodeImage(file);
         if (id !== selectionId) return;
         selected = file; sourceUrl = URL.createObjectURL(file); preview.src = sourceUrl;
+        if (config.kind === 'resize') {
+          range('resize-width').value = String(image.naturalWidth);
+          range('resize-height').value = String(image.naturalHeight);
+          updateResize();
+        }
         get('[data-filename]').textContent = file.name;
         get('[data-fileinfo]').textContent = `${size(file.size)} · ${image.naturalWidth} × ${image.naturalHeight} piksel`;
         state('editor'); paintCrop(); emit('file_selected');
@@ -93,12 +122,27 @@ export function initImageTools() {
       } finally { busy = false; pickButton.disabled = false; }
     }
     pickButton.addEventListener('click', () => input.click());
-    input.addEventListener('change', () => { if (input.files?.[0]) void select(input.files[0]); });
+    function selectFiles(files: File[]) {
+      if (busy || !files.length) return;
+      if (config.kind !== 'compress' || files.length === 1) { void select(files[0]); return; }
+      clear();
+      if (files.length > 20 || files.reduce((sum, file) => sum + file.size, 0) > 128 * 1024 * 1024) {
+        announce('Pilih maksimal 20 foto dengan total ukuran maksimal 128 MB.'); return;
+      }
+      batchFiles = files;
+      state('batch'); batch!.hidden = false;
+      const list = get('[data-batch-list]');
+      files.forEach(file => { const row = document.createElement('p'); row.textContent = `${file.name} — Menunggu`; list.append(row); emit('file_selected'); });
+      get('[data-batch-status]').textContent = `${files.length} foto siap diproses.`;
+      get<HTMLProgressElement>('[data-batch-progress]').hidden = true;
+      get('[data-batch-process]').focus();
+    }
+    input.addEventListener('change', () => selectFiles(Array.from(input.files || [])));
     let dragDepth = 0;
     drop.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; drop.classList.add('drag-over'); });
     drop.addEventListener('dragover', event => { event.preventDefault(); });
     drop.addEventListener('dragleave', () => { if (--dragDepth <= 0) drop.classList.remove('drag-over'); });
-    drop.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; drop.classList.remove('drag-over'); if (event.dataTransfer?.files[0]) void select(event.dataTransfer.files[0]); });
+    drop.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; drop.classList.remove('drag-over'); selectFiles(Array.from(event.dataTransfer?.files || [])); });
     // A file dropped outside the dropzone must not navigate away from the tool.
     window.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
     window.addEventListener('drop', event => { if (event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
@@ -122,8 +166,55 @@ export function initImageTools() {
         get('[data-target-hint]').textContent = valid ? `Hasil maksimal ${targetLabel(target)}. Kualitas disesuaikan otomatis.` : 'Isi target ukuran sebelum memproses foto.';
       });
     }
+    function resizeDimensions() {
+      let width = Number(range('resize-width').value), height = Number(range('resize-height').value);
+      if (get<HTMLSelectElement>('[data-resize-mode]').value === 'percent') {
+        const percent = Number(range('resize-percent').value);
+        if (!Number.isInteger(percent) || percent < 1 || percent > 1000) throw new Error('Gunakan persen bulat antara 1 dan 1.000.');
+        width = Math.max(1, Math.round(image!.naturalWidth * percent / 100));
+        height = Math.max(1, Math.round(image!.naturalHeight * percent / 100));
+      }
+      validateDimensions(width, height);
+      return { width, height };
+    }
+    function updateResize(changed?: string) {
+      if (!image) return;
+      if (range('lock').checked && changed) {
+        if (changed === 'width') range('resize-height').value = String(Math.max(1, Math.round(Number(range('resize-width').value) * image.naturalHeight / image.naturalWidth)));
+        else range('resize-width').value = String(Math.max(1, Math.round(Number(range('resize-height').value) * image.naturalWidth / image.naturalHeight)));
+      }
+      const percent = get<HTMLSelectElement>('[data-resize-mode]').value === 'percent';
+      get('[data-pixel-fields]').hidden = percent; get('[data-lock-wrap]').hidden = percent; get('[data-percent-fields]').hidden = !percent;
+      try { const { width, height } = resizeDimensions(); get('[data-resize-summary]').textContent = `Hasil: ${width} × ${height} piksel`; }
+      catch (error) { get('[data-resize-summary]').textContent = (error as Error).message; }
+    }
+    root.querySelector('[data-format]')?.addEventListener('change', invalidateResult);
+    root.querySelector('[data-background]')?.addEventListener('input', invalidateResult);
+    if (config.kind === 'resize') {
+      ['width', 'height', 'percent'].forEach(name => range(`resize-${name}`).addEventListener('input', () => { updateResize(name === 'percent' ? undefined : name); invalidateResult(); }));
+      get('[data-resize-mode]').addEventListener('change', () => { updateResize(); invalidateResult(); });
+      range('lock').addEventListener('change', () => { updateResize('width'); invalidateResult(); });
+    }
+    function job(): ImageJob {
+      const format = (root.querySelector<HTMLSelectElement>('[data-format]')?.value || config.format || 'image/jpeg') as ImageFormat;
+      if (config.kind === 'compress') return { kind: 'compress', format, targetBytes: target ? target * 1024 : undefined, quality: Number(range('quality').value) / 100 };
+      if (config.kind === 'crop') {
+        const field = range('photo-target').value;
+        const kb = field === '' ? undefined : parseTargetKB(field);
+        if (field !== '' && kb === undefined) throw new Error('Masukkan batas ukuran bulat antara 1 dan 25.600 KB, atau kosongkan.');
+        return { kind: 'crop', format: 'image/jpeg', width: config.width, height: config.height, zoom: Number(range('zoom').value), x: Number(range('x').value), y: Number(range('y').value), targetBytes: kb ? kb * 1024 : undefined };
+      }
+      return { kind: config.kind, format, background: root.querySelector<HTMLInputElement>('[data-background]')?.value, ...(config.kind === 'resize' ? resizeDimensions() : {}) };
+    }
     if (config.kind === 'crop') {
-      ['zoom', 'x', 'y'].forEach(name => range(name).addEventListener('input', paintCrop));
+      ['zoom', 'x', 'y'].forEach(name => range(name).addEventListener('input', () => { paintCrop(); invalidateResult(); }));
+      get<HTMLSelectElement>('[data-photo-size]').addEventListener('change', event => {
+        const [width, height] = (event.target as HTMLSelectElement).value.split('x').map(Number);
+        config.width = width; config.height = height; config.ratio = width / height;
+        get('[data-photo-dimensions]').textContent = `Hasil: ${width} × ${height} piksel · JPG`;
+        paintCrop(); invalidateResult();
+      });
+      range('photo-target').addEventListener('input', invalidateResult);
       let pointer: { id: number; x: number; y: number } | undefined;
       cropCanvas.addEventListener('pointerdown', event => { pointer = { id: event.pointerId, x: event.clientX, y: event.clientY }; cropCanvas.setPointerCapture(event.pointerId); });
       cropCanvas.addEventListener('pointermove', event => {
@@ -142,20 +233,17 @@ export function initImageTools() {
     processButton.addEventListener('click', async () => {
       if (!selected || !image || busy) return;
       if (!validateTarget()) { range('custom-target').focus(); return; }
+      let settings: ImageJob;
+      try { settings = job(); } catch (failure) { announce((failure as Error).message); return; }
       busy = true; error.hidden = true; state('processing');
-      root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(b => b.disabled = true);
-      if (config.kind === 'compress') { range('custom-target').disabled = true; range('quality').disabled = true; }
+      lockSettings(true);
       try {
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        let output: ImageResult;
-        if (config.kind === 'compress') output = await compressImage(image, target ? target * 1024 : undefined, Number(range('quality').value) / 100);
-        else if (config.kind === 'crop') output = await cropImage(image, config.width!, config.height!, Number(range('zoom').value), Number(range('x').value), Number(range('y').value));
-        else output = await convertImage(image, config.format!, config.format === 'image/jpeg' ? range('background').value : undefined);
+        const output = await processor.process(selected, settings, image);
         if (resultUrl) URL.revokeObjectURL(resultUrl);
         resultUrl = URL.createObjectURL(output.blob);
-        const extension = output.blob.type === 'image/png' ? 'png' : 'jpg';
-        const base = selected.name.replace(/\.[^.]+$/, '') || 'foto';
-        download.href = resultUrl; download.download = `${base}-beresfile.${extension}`;
+        const extension = extensionFor(output.blob.type);
+        download.href = resultUrl; download.download = outputName(selected, output.blob.type);
         get<HTMLImageElement>('[data-result-preview]').src = resultUrl;
         get('[data-before]').textContent = size(selected.size); get('[data-after]').textContent = size(output.blob.size);
         const difference = Math.round((1 - output.blob.size / selected.size) * 100);
@@ -165,12 +253,50 @@ export function initImageTools() {
         state('result'); emit('processing_success'); download.focus({ preventScroll: true });
       } catch (failure) {
         state('editor'); announce(failure instanceof Error ? failure.message : 'Foto gagal diproses. Coba gunakan foto yang lebih kecil.');
-      } finally { busy = false; root.querySelectorAll<HTMLButtonElement>('[data-target]').forEach(b => b.disabled = false); if (config.kind === 'compress') { range('custom-target').disabled = false; range('quality').disabled = false; } }
+      } finally { busy = false; lockSettings(false); }
     });
+    if (batch) {
+      get('[data-batch-reset]').addEventListener('click', () => { if (!busy) { clear(); pickButton.focus(); } });
+      get('[data-batch-process]').addEventListener('click', async () => {
+        if (busy || !batchFiles.length || !validateTarget()) return;
+        const settings = job();
+        clearBatchResult(); error.hidden = true; busy = true; lockSettings(true); root.setAttribute('aria-busy', 'true');
+        const progress = get<HTMLProgressElement>('[data-batch-progress]'); progress.hidden = false; progress.max = batchFiles.length; progress.value = 0;
+        const rows = get('[data-batch-list]').children;
+        let outputBytes = 0;
+        try {
+          for (const [index, file] of batchFiles.entries()) {
+            rows[index].textContent = `${file.name} — Memproses…`;
+            try {
+              if (file.size > MAX_FILE_BYTES || !config.accept.split(',').includes(await imageType(file))) throw new Error('Gunakan JPG, PNG, atau WebP yang valid, maksimal 25 MB per foto.');
+              const output = await processor.process(file, settings);
+              if (outputBytes + output.blob.size > 128 * 1024 * 1024) throw new Error('Total hasil melebihi 128 MB. Proses dalam kelompok lebih kecil.');
+              outputBytes += output.blob.size;
+              batchEntries.push({ name: outputName(file, output.blob.type), blob: output.blob });
+              rows[index].textContent = `${file.name} — Selesai (${size(output.blob.size)})`; emit('processing_success');
+            } catch (failure) { rows[index].textContent = `${file.name} — ${(failure as Error).message}`; emit('processing_error'); }
+            progress.value = index + 1;
+            get('[data-batch-status]').textContent = `${index + 1} dari ${batchFiles.length} foto diproses; ${batchEntries.length} berhasil.`;
+          }
+          if (batchEntries.length) {
+            processedMode = targetMode; processedTarget = target;
+            get('[data-batch-status]').textContent += ' Menyiapkan ZIP…';
+            zipUrl = URL.createObjectURL(await processor.zip(batchEntries));
+            get('[data-batch-zip]').hidden = false;
+            get('[data-batch-status]').textContent = `${batchEntries.length} berhasil, ${batchFiles.length - batchEntries.length} gagal. ZIP siap diunduh.`;
+          }
+        } catch (failure) { announce((failure as Error).message); }
+        finally { batchEntries = []; busy = false; lockSettings(false); root.setAttribute('aria-busy', 'false'); }
+      });
+      get('[data-batch-zip]').addEventListener('click', () => {
+        if (!zipUrl || busy) return;
+        const link = document.createElement('a'); link.href = zipUrl; link.download = 'beresfile-foto.zip'; link.click(); emit('download_clicked');
+      });
+    }
     get('[data-reset]').addEventListener('click', () => { if (!busy) { clear(); pickButton.focus(); } });
     get('[data-another]').addEventListener('click', () => { clear(); pickButton.focus(); });
     download.addEventListener('click', () => emit('download_clicked'));
-    window.addEventListener('pagehide', event => { if (!event.persisted) { if (sourceUrl) URL.revokeObjectURL(sourceUrl); if (resultUrl) URL.revokeObjectURL(resultUrl); } });
+    window.addEventListener('pagehide', event => { if (!event.persisted) { processor.stop(); if (sourceUrl) URL.revokeObjectURL(sourceUrl); if (resultUrl) URL.revokeObjectURL(resultUrl); if (zipUrl) URL.revokeObjectURL(zipUrl); } });
     emit('tool_opened');
   });
 }

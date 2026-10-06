@@ -18,9 +18,9 @@ export function contentFor(tool: Tool): ToolContent {
     };
     return {
       heading: intent[kb][0],
-      paragraphs: [intent[kb][1], `Alat mencari kualitas JPG yang memenuhi batas ${kb} KB. Bila kualitas saja belum cukup, dimensi foto ikut diperkecil. Angka ${kb} KB adalah batas atas, bukan ukuran yang harus tepat sama; hasil yang lebih kecil tetap memenuhi target.`],
+      paragraphs: [intent[kb][1], `Alat menyesuaikan kompresi dan dimensi pada format pilihan agar memenuhi batas ${kb} KB. Bila kualitas saja belum cukup, dimensi foto ikut diperkecil. Angka ${kb} KB adalah batas atas, bukan ukuran yang harus tepat sama; hasil yang lebih kecil tetap memenuhi target.`],
       checklistTitle: 'Periksa sebelum diunggah',
-      checklist: ['Wajah atau tulisan penting masih jelas pada preview.', 'Formulir menerima format JPG dan dimensi hasilnya.', 'File yang diunggah adalah hasil download, bukan foto asli yang lebih besar.'],
+      checklist: ['Wajah atau tulisan penting masih jelas pada preview.', 'Formulir menerima format pilihan dan dimensi hasilnya.', 'File yang diunggah adalah hasil download, bukan foto asli yang lebih besar.'],
       faqs: [
         ['Formulir tetap menolak foto. Apa yang harus diperiksa?', `Cek format, dimensi minimum, dan batas ukuran pada formulir. Tool ini memakai 1 KB = 1.024 byte; sebagian formulir bisa menghitungnya berbeda. Jika ukurannya terlalu dekat dengan batas ${kb} KB, pilih Ukuran lain dan coba target sedikit lebih kecil.`],
         ['Bagaimana kalau foto asli sudah lebih kecil dari batas?', 'Anda bisa memakai foto asli jika format dan dimensinya juga sesuai. Kompresi tambahan tidak diperlukan dan dapat mengurangi detail.'],
@@ -30,7 +30,7 @@ export function contentFor(tool: Tool): ToolContent {
   }
   if (tool.kind === 'compress') return {
     heading: 'Pilih batas ukuran, atau atur kualitas sendiri',
-    paragraphs: ['Kalau foto akan diunggah ke formulir, lihat dulu batas ukuran file yang tertulis di sana. Pilih preset 50, 100, 200, 300, atau 500 KB, maupun 1 MB. Untuk batas lain, gunakan Ukuran lain dan masukkan angkanya dalam KB.', 'Kalau tidak ada batas yang harus dipenuhi, gunakan Atur kualitas. Kualitas yang lebih rendah biasanya menghasilkan file lebih kecil, tetapi detail bisa berkurang. Mode kualitas mempertahankan dimensi; mode target dapat mengecilkan dimensi agar batas ukuran tercapai. Semua hasil kompresi disimpan sebagai JPG.'],
+    paragraphs: ['Kalau foto akan diunggah ke formulir, lihat dulu batas ukuran file yang tertulis di sana. Pilih preset 50, 100, 200, 300, atau 500 KB, maupun 1 MB. Untuk batas lain, gunakan Ukuran lain dan masukkan angkanya dalam KB.', 'Kalau tidak ada batas yang harus dipenuhi, gunakan Atur kualitas. Kualitas yang lebih rendah biasanya menghasilkan file lebih kecil, tetapi detail bisa berkurang. Mode kualitas mempertahankan dimensi; mode target dapat mengecilkan dimensi agar batas ukuran tercapai. Pilih hasil JPG, PNG, atau WebP. PNG mempertahankan transparansi; JPG mengisi bagian transparan dengan putih.'],
     checklistTitle: 'Pilih pengaturan yang sesuai',
     checklist: ['Ada batas upload: pakai preset atau input KB bebas.', 'Tidak ada batas upload: mulai dari kualitas 80%, lalu periksa hasilnya.', 'PNG transparan: bagian transparan akan menjadi putih pada hasil JPG.'],
     faqs: [
@@ -40,7 +40,7 @@ export function contentFor(tool: Tool): ToolContent {
     ],
   };
   if (tool.kind === 'crop') {
-    const ratio = tool.slug.endsWith('3x4') ? '3×4' : '4×6';
+    const ratio = tool.slug.endsWith('2x3') ? '2×3' : tool.slug.endsWith('3x4') ? '3×4' : '4×6';
     return {
       heading: `Menyiapkan pas foto dengan rasio ${ratio}`,
       paragraphs: [`Foto ${ratio} dibuat dengan memotong gambar ke rasio ${ratio}, bukan menarik gambar hingga wajah berubah bentuk. Pilih foto yang memiliki ruang cukup di sekitar kepala dan bahu. Gunakan zoom serta posisi horizontal dan vertikal untuk menentukan bagian yang masuk ke hasil.`, `Hasilnya berupa JPG ${tool.width} × ${tool.height} piksel. Rasio gambar dan ukuran cetak adalah dua hal berbeda: untuk mencetak ${ratio.replace('×', ' × ')} cm, ukuran cetak perlu diatur pada aplikasi atau layanan cetak. Tool ini tidak mengenali wajah otomatis dan tidak mengganti latar foto.`],
@@ -49,30 +49,26 @@ export function contentFor(tool: Tool): ToolContent {
       faqs: [
         ['Kenapa sebagian foto terpotong?', `Foto asli mungkin memiliki rasio berbeda dari ${ratio}. Pemotongan diperlukan agar proporsi wajah tetap normal. Geser foto atau kurangi zoom untuk menyertakan bagian yang Anda butuhkan.`],
         ['Apakah latar foto bisa otomatis menjadi merah atau biru?', 'Belum. Alat ini hanya mengatur potongan dan ukuran foto. Gunakan foto yang latarnya sudah sesuai dengan persyaratan.'],
-        ['Bagaimana jika file pas foto masih terlalu besar?', 'Simpan hasil potongan terlebih dahulu, lalu buka alat kompres foto. Pilih batas KB dari formulir dan periksa lagi ketajaman wajah setelah kompresi.'],
+        ['Bagaimana jika file pas foto masih terlalu besar?', 'Isi Batas ukuran (KB) sebelum membuat pas foto. Dimensi tetap terjaga; jika batas tidak tercapai, naikkan batas KB dan periksa kembali ketentuan formulir.'],
       ],
     };
   }
-  if (tool.format === 'image/jpeg') return {
-    heading: 'Mengubah PNG agar bisa dipakai sebagai JPG',
-    paragraphs: ['Beberapa formulir hanya menerima JPG. Mengganti nama file dari .png menjadi .jpg tidak mengubah format gambar; gunakan konversi di atas agar hasil benar-benar berupa JPG. Dimensi gambar tetap sama dengan gambar awal.', 'JPG tidak menyimpan transparansi. Jika PNG memiliki latar transparan, area itu akan diisi warna pilihan Anda; putih dipilih secara default. Konversi juga menggunakan kompresi JPG, jadi periksa tulisan, garis tipis, atau tepi logo sebelum hasilnya dipakai.'],
-    checklistTitle: 'Perhatikan gambar transparan',
-    checklist: ['Pilih warna latar yang cocok dengan tempat gambar akan digunakan.', 'Periksa detail kecil pada preview hasil JPG.', 'Kalau ada batas KB, lanjutkan dengan alat kompres setelah konversi.'],
-    faqs: [
-      ['Mengapa latar transparan hilang?', 'Itu batas format JPG, bukan kerusakan gambar. Pakai PNG asli jika transparansi masih diperlukan.'],
-      ['Apakah JPG pasti lebih kecil daripada PNG?', 'Tidak selalu. JPG biasanya lebih efisien untuk foto, sedangkan PNG dapat lebih efisien untuk gambar sederhana. Ukuran sebelum dan sesudah ditampilkan agar bisa dibandingkan.'],
-      ['Bisa mengganti warna latar foto yang sudah ada?', 'Pemilih warna hanya mengisi area transparan pada PNG. Warna latar yang sudah menjadi bagian gambar tidak dihapus atau diganti.'],
-    ],
+  if (tool.kind === 'resize') return {
+    heading: 'Sesuaikan dimensi foto tanpa mengubah file asli',
+    paragraphs: ['Pilih lebar dan tinggi dalam piksel atau persentase dari ukuran asli. Kunci rasio menjaga proporsi; buka hanya jika Anda membutuhkan ukuran yang berbeda.', 'Pilih JPG, PNG, atau WebP. Ukuran piksel berbeda dari ukuran file dalam KB. Memperbesar foto tidak mengembalikan detail yang hilang.'],
+    checklistTitle: 'Periksa ukuran yang diperlukan',
+    checklist: ['Pastikan lebar dan tinggi sesuai persyaratan.', 'Pertahankan kunci rasio agar wajah tidak berubah bentuk.', 'Gunakan PNG atau WebP jika transparansi diperlukan.'],
+    faqs: [['Mengapa hasil lebih besar dalam KB?', 'Ukuran file juga bergantung pada format dan isi gambar. Periksa hasil, lalu kompres jika dibutuhkan.']],
   };
+  const format = tool.format === 'image/jpeg' ? 'JPG' : tool.format === 'image/webp' ? 'WebP' : 'PNG';
   return {
-    heading: 'Saat gambar perlu disimpan dalam format PNG',
-    paragraphs: ['Gunakan alat ini ketika aplikasi atau formulir meminta format PNG. Hasilnya adalah file PNG yang sebenarnya, bukan sekadar JPG yang diganti ekstensi namanya. Dimensi gambar dipertahankan.', 'PNG menyimpan gambar tanpa menambahkan kompresi lossy seperti JPG. Namun konversi tidak dapat mengembalikan detail yang sebelumnya hilang pada foto JPG. Untuk foto, file PNG juga biasanya lebih besar, jadi perhatikan batas ukuran saat akan diunggah.'],
-    checklistTitle: 'Sebelum memilih PNG',
-    checklist: ['Pastikan format PNG memang diperlukan oleh aplikasi atau formulir.', 'Periksa ukuran hasil, terutama untuk foto beresolusi tinggi.', 'Simpan JPG asli jika Anda masih membutuhkan file yang lebih kecil.'],
+    heading: `Mengubah gambar menjadi ${format}`,
+    paragraphs: [`Gunakan konversi untuk menghasilkan file ${format} yang sebenarnya. Mengganti ekstensi nama file saja tidak mengubah format data. Dimensi gambar dipertahankan.`, format === 'JPG' ? 'JPG tidak menyimpan transparansi. Area transparan akan diisi warna pilihan Anda; putih adalah pilihan awal.' : `${format} mendukung transparansi, tetapi konversi tidak menghapus latar yang sudah menjadi bagian gambar. Detail yang sebelumnya hilang tidak dapat dipulihkan.`],
+    checklistTitle: 'Periksa sebelum menyimpan',
+    checklist: [`Pastikan aplikasi tujuan menerima ${format}.`, 'Periksa ukuran file dan detail pada preview.', 'Simpan file asli jika masih diperlukan; gambar animasi menghasilkan gambar diam.'],
     faqs: [
-      ['Apakah latar foto akan menjadi transparan?', 'Tidak. JPG tidak menyimpan transparansi, dan konversi ini tidak menghapus latarnya. Latar yang sudah ada tetap menjadi bagian gambar PNG.'],
-      ['Apakah mengganti ekstensi menjadi .png cukup?', 'Tidak. Nama file dan format data gambar berbeda. Download dari alat ini menghasilkan data PNG yang bisa dibaca aplikasi pendukungnya.'],
-      ['Bagaimana kalau hasil PNG terlalu besar untuk formulir?', 'Periksa apakah formulir juga menerima JPG. Jika iya, JPG biasanya lebih cocok untuk foto. Alat kompres saat ini menghasilkan JPG, jadi jangan menggunakannya jika format PNG wajib dipertahankan.'],
+      ['Apakah hasil selalu lebih kecil?', 'Tidak. Ukuran bergantung pada format dan isi gambar. Perbandingan ukuran ditampilkan setelah proses.'],
+      ['Bagaimana jika ada batas KB?', `Gunakan alat kompres dan pilih ${format} sebagai format hasil. Periksa dimensi serta kualitas setelah kompresi.`],
     ],
   };
 }

@@ -13,7 +13,7 @@ export function uniqueFilename(name: string, used: Set<string>) {
 // STORE avoids wasting CPU recompressing encoded images.
 export async function createZip(entries: ZipEntry[]): Promise<Blob> {
   if (!entries.length || entries.length > 20) throw new Error('ZIP membutuhkan 1–20 hasil foto.');
-  const parts: BlobPart[] = [], central: Uint8Array[] = [], used = new Set<string>(); let offset = 0;
+  const parts: BlobPart[] = [], central: Uint8Array<ArrayBuffer>[] = [], used = new Set<string>(); let offset = 0;
   for (const entry of entries) {
     const name = new TextEncoder().encode(uniqueFilename(entry.name, used));
     const bytes = new Uint8Array(await entry.blob.arrayBuffer()), crc = crc32(bytes);

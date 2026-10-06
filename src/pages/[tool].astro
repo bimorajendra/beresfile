@@ -8,11 +8,18 @@ import { contentFor } from '../lib/tool-content';
 export function getStaticPaths() { return tools.map(tool => ({ params: { tool: tool.slug }, props: { tool } })); }
 const { tool } = Astro.props;
 const content = contentFor(tool);
+const instructions = tool.kind === 'compress'
+  ? 'Pilih batas KB atau kualitas dan format hasil, lalu tekan Kompres foto.'
+  : tool.kind === 'crop'
+    ? 'Pilih ukuran pas foto, atur posisi dan zoom, lalu isi batas KB jika diperlukan.'
+    : tool.kind === 'resize'
+      ? 'Atur dimensi piksel atau persen, pilih format hasil, lalu tekan Resize foto.'
+      : `Periksa preview${tool.format === 'image/jpeg' ? ' dan pilih warna latar' : ''}, lalu konversi ke ${tool.format === 'image/webp' ? 'WebP' : tool.format === 'image/png' ? 'PNG' : 'JPG'}.`;
 ---
 <Layout title={`${tool.title} Gratis`} description={tool.description}>
   <div class="breadcrumb"><a href="/">Beranda</a><Icon name="chevron" size={12}/><span>{tool.short}</span></div>
   <section class="tool-intro"><h1>{tool.title}</h1><p>{tool.description}</p></section>
   <div class="workspace"><ImageTool tool={tool}/><ToolSidebar current={tool.slug}/></div>
   <article class="task-guide" aria-labelledby="task-guide-title"><div><h2 id="task-guide-title">{content.heading}</h2>{content.paragraphs.map(paragraph => <p>{paragraph}</p>)}</div><aside><h3>{content.checklistTitle}</h3><ul>{content.checklist.map(item => <li>{item}</li>)}</ul></aside></article>
-  <section class="tool-content"><div><h2>Cara pakai</h2><ol class="instruction-list"><li>Pilih {tool.accept === 'image/png' ? 'gambar PNG' : tool.accept === 'image/jpeg' ? 'foto JPG' : 'foto JPG, PNG, atau WebP'} dari perangkat Anda.</li><li>{tool.kind === 'compress' ? tool.target ? `Gunakan target ${tool.target} KB atau pilih Ukuran lain untuk batas KB berbeda, lalu tekan Kompres foto.` : 'Pilih preset, masukkan target KB sendiri, atau atur kualitas, lalu tekan Kompres foto.' : tool.kind === 'crop' ? 'Atur posisi dan zoom pada preview, lalu simpan potongan foto.' : tool.format === 'image/jpeg' ? 'Pilih warna latar jika gambar transparan, lalu konversi ke JPG.' : 'Periksa preview, lalu konversi ke PNG.'}</li><li>Periksa hasil dan tekan Download foto untuk menyimpannya.</li></ol><p class="content-note">Foto asli tetap utuh. Hasil disimpan sebagai file baru di perangkat Anda.</p></div><div class="faq"><h2>Pertanyaan umum</h2>{[...tool.faqs, ...content.faqs].map(([q, a]) => <details><summary>{q}<span>+</span></summary><p>{a}</p></details>)}<details><summary>Apakah foto saya dikirim ke server?<span>+</span></summary><p>Tidak. Foto diproses di browser Anda. BeresFile tidak menyimpan foto atau riwayat file Anda.</p></details></div></section>
+  <section class="tool-content"><div><h2>Cara pakai</h2><ol class="instruction-list"><li>Pilih {tool.accept === 'image/png' ? 'gambar PNG' : tool.accept === 'image/jpeg' ? 'foto JPG' : 'foto JPG, PNG, atau WebP'} dari perangkat Anda.</li><li>{instructions}</li><li>Periksa hasil dan tekan Download foto untuk menyimpannya.</li></ol><p class="content-note">Foto asli tetap utuh. Hasil disimpan sebagai file baru di perangkat Anda.</p></div><div class="faq"><h2>Pertanyaan umum</h2>{[...tool.faqs, ...content.faqs].map(([q, a]) => <details><summary>{q}<span>+</span></summary><p>{a}</p></details>)}<details><summary>Apakah foto saya dikirim ke server?<span>+</span></summary><p>Tidak. Foto diproses di browser Anda. BeresFile tidak menyimpan foto atau riwayat file Anda.</p></details></div></section>
 </Layout>

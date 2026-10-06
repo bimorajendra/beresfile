@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { tools } from '../src/lib/tools';
 
 async function fixture(page: Page, format = 'image/png', noise = false) {
   const base64 = await page.evaluate(({ format, noise }) => {
@@ -129,7 +130,7 @@ test('Drag and drop accepts a photo and the primary action can be reached by key
 });
 
 test('All pages have metadata, local tool links, and no overflow at required widths', async ({ page }, info) => {
-  const paths = ['/', '/compress-image/', '/compress-image-100kb/', '/compress-image-200kb/', '/compress-image-500kb/', '/resize-foto-3x4/', '/resize-foto-4x6/', '/png-to-jpg/', '/jpg-to-png/', '/privasi/'];
+  const paths = ['/', ...tools.map(tool => `/${tool.slug}/`), '/privasi/'];
   for (const width of [320, 375, 414, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const path of paths) {
@@ -143,7 +144,7 @@ test('All pages have metadata, local tool links, and no overflow at required wid
     await page.screenshot({ path: info.outputPath(`home-${width}.png`), fullPage: true });
   }
   await page.goto('/privasi/'); expect(await page.locator('script[src]').count()).toBe(0);
-  const sitemap = await page.request.get('/sitemap.xml'); expect((await sitemap.text()).match(/<loc>/g)?.length).toBe(10);
+  const sitemap = await page.request.get('/sitemap.xml'); expect((await sitemap.text()).match(/<loc>/g)?.length).toBe(paths.length);
   const robots = await page.request.get('/robots.txt'); expect(await robots.text()).toContain('https://beresfile.id/sitemap.xml');
 });
 
